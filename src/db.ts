@@ -3,11 +3,10 @@ import { config } from "./config.js";
 
 const { Pool } = pg;
 
+// Let the deployment provider / DATABASE_URL control TLS policy instead of
+// weakening certificate verification in application code.
 export const db = new Pool({
   connectionString: config.databaseUrl,
-  ssl: config.databaseUrl.includes("localhost") || config.databaseUrl.includes("127.0.0.1")
-    ? undefined
-    : { rejectUnauthorized: false },
 });
 
 export async function ensureSchema(): Promise<void> {
