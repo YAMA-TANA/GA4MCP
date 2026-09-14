@@ -16,6 +16,7 @@ export const oauthMetadata = {
   authorization_endpoint: new URL("/oauth/authorize", config.baseUrl).toString(),
   token_endpoint: new URL("/oauth/token", config.baseUrl).toString(),
   registration_endpoint: new URL("/oauth/register", config.baseUrl).toString(),
+  revocation_endpoint: new URL("/oauth/revoke", config.baseUrl).toString(),
   response_types_supported: ["code"],
   grant_types_supported: ["authorization_code", "refresh_token"],
   token_endpoint_auth_methods_supported: ["none"],
@@ -76,25 +77,28 @@ async function issueMcpTokens(args: {
   const refreshToken = `ga4r_${randomToken(40)}`;
   const accessExpiry = new Date(Date.now() + ACCESS_TTL_SECONDS * 1000);
   const refreshExpiry = new Date(Date.now() + REFRESH_TTL_SECONDS * 1000);
+  const client = await db.connect();
 
-  await db.query("BEGIN");
   try {
-    await db.query(
+    await client.query("BEGIN");
+    await client.query(
       `INSERT INTO oauth_access_tokens
        (token_hash, user_id, client_id, scope, resource, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [hashToken(accessToken), args.userId, args.clientId, args.scope, args.resource ?? null, accessExpiry],
     );
-    await db.query(
+    await client.query(
       `INSERT INTO oauth_refresh_tokens
        (token_hash, user_id, client_id, scope, resource, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [hashToken(refreshToken), args.userId, args.clientId, args.scope, args.resource ?? null, refreshExpiry],
     );
-    await db.query("COMMIT");
+    await client.query("COMMIT");
   } catch (error) {
-    await db.query("ROLLBACK");
+    await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
   }
 
   return {
